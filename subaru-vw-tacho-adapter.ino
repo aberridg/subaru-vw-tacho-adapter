@@ -1,15 +1,49 @@
 
-#include <FreqMeasure.h>
+//#include <FreqMeasure.h>
 #include <elapsedMillis.h>
 #include <FrequencyTimer2.h>
 
-#include "SoftPWM.h"
+//#include "SoftPWM.h"
 
 //Initializing Fuel pin
-int fuel_pin = 3;
+int fuel_pin = 9;
 int clutch_pin = 12;
 
 // Tacho input pin MUST be D8! Swap it ;-)
+
+// Frequency counter sketch, for measuring frequencies low enough to execute an interrupt for each cycle
+// Connect the frequency source to the INT0 pin (digital pin 2 on an Arduino Uno)
+
+volatile unsigned long firstPulseTime;
+volatile unsigned long lastPulseTime;
+volatile unsigned long numPulses;
+
+void isr()
+{
+  unsigned long now = micros();
+  if (numPulses == 1)
+  {
+    firstPulseTime = now;
+  }
+  else
+  {
+    lastPulseTime = now;
+  }
+  ++numPulses;
+}
+
+
+// Measure the frequency over the specified sample time in milliseconds, returning the frequency in Hz
+float readFrequency(unsigned int sampleTime)
+{
+  numPulses = 0;                      // prime the system to start a new reading
+  attachInterrupt(digitalPinToInterrupt(2), isr, RISING);    // enable the interrupt
+  delay(sampleTime);
+  detachInterrupt(0);
+  Serial.print("numPulses");
+  Serial.println(numPulses);
+  return (numPulses < 3) ? 0 : (1000000.0 * (float)(numPulses - 2)) / (float)(lastPulseTime - firstPulseTime);
+}
 
 
 
@@ -26,7 +60,7 @@ void setup() {
   pinMode(clutch_pin, OUTPUT);
   digitalWrite(clutch_pin, HIGH);
 
-  FreqMeasure.begin();
+  //FreqMeasure.begin();
   pinMode(FREQUENCYTIMER2_PIN, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   FrequencyTimer2::setPeriod(200);
@@ -34,12 +68,12 @@ void setup() {
   FrequencyTimer2::setOnOverflow(Burp);
 
   //analogWrite(fuel_pin, 100);
-   // Initialize
-  SoftPWMBegin();
+  // Initialize
+  //SoftPWMBegin();
 
   // Create and set pin 13 to 0 (off)
-  SoftPWMSet(fuel_pin, 0);
-  SoftPWMSetPercent(fuel_pin, 50);
+  //SoftPWMSet(fuel_pin, 0);
+  //SoftPWMSetPercent(fuel_pin, 50);
 }
 
 
@@ -81,7 +115,7 @@ void loop() {
   int minsToEmpty = 240 - minsSinceStart;
 
   // RPM is f x 60 x 2/cylinders
-  if (FreqMeasure.available()) {
+  /*if (FreqMeasure.available()) {
     // average several readings together
     sum = sum + FreqMeasure.read();
     count = count + 1;
@@ -94,8 +128,13 @@ void loop() {
       sum = 0;
       count = 0;
     }
-  }
+    }*/
 
+  float freq = readFrequency(1000);
+  Serial.print("freq:");
+  Serial.println(freq);
+  rpm = freq * 60 * 0.5;
+  
   // Divide rpm by 4 to get wheel rpm/ticks per sec. Set ticks/sec to 0 if rpm < 1000
   if (rpm > 1000) {
     ticksPerSec = rpm / 4;
@@ -138,7 +177,7 @@ void loop() {
     }
     // pause frequency measurement - we can't measure frequency and analogWrite at the same time!
     // need to check that these things work!
-    Serial.println("Ending freqMeasure");
+    //Serial.println("Ending freqMeasure");
     delay(1);
     //FreqMeasure.end();
     // update fuel PWM duty cycle
@@ -146,11 +185,11 @@ void loop() {
     Serial.println((int)((minsToEmpty / 240.0) * 255));
     Serial.print("Mins to empty: ");
     Serial.println(minsToEmpty);
-    //analogWrite(fuel_pin, (int)((minsToEmpty / 240.0) * 220)); 
+    analogWrite(fuel_pin, (int)((minsToEmpty / 240.0) * 220));
     delay(1);
     // resume frequency measurement
     Serial.println("Resume freqMeasure");
-    FreqMeasure.begin();
+    //FreqMeasure.begin();
   }
 
   if (ledOn) {
