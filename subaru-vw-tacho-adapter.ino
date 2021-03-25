@@ -94,7 +94,7 @@ volatile int burpCount = 0;
 
 void Burp(void) {
   burpCount++;
-  if (burpCount > 100) {
+  if (burpCount > 10) {
     ledOn = !ledOn;
     burpCount = 0;
   }
@@ -115,28 +115,13 @@ void loop() {
   // current calculations end up setting PWM freq to 0 after 1 min
   int minsToEmpty = 240 - minsSinceStart;
 
-  // RPM is f x 60 x 2/cylinders
-  /*if (FreqMeasure.available()) {
-    // average several readings together
-    sum = sum + FreqMeasure.read();
-    count = count + 1;
-    if (count > 30) {
-      float frequency = FreqMeasure.countToFrequency(sum / count);
-      Serial.print(frequency);
-      Serial.print(" ");
-      rpm = frequency * 60 * 0.5;
-      Serial.println(rpm);
-      sum = 0;
-      count = 0;
-    }
-    }*/
+  float freq = readFrequency(200);
 
-  float freq = readFrequency(1000);
-  Serial.print("freq:");
-  Serial.println(freq);
-  rpm = freq * 60 * 0.5;
-  
-  // Divide rpm by 4 to get wheel rpm/ticks per sec. Set ticks/sec to 0 if rpm < 1000
+  // RPM is f x 60 x 2/cylinders
+  rpm = min(freq * 60 * 0.5, 7000); // Constrain RPM to 7000 max
+
+  // Divide rpm by 4 to get wheel rpm/ticks per sec. Set ticks/sec to 0 if rpm < 1000, to simulate
+  // setting the speed to 0 at idle
   if (rpm > 1000) {
     ticksPerSec = rpm / 4;
   } else {
@@ -146,33 +131,26 @@ void loop() {
   // Update speed every 200ms
   if (sinceSpeedUpdate > 200) {
     sinceSpeedUpdate = 0;
-    Serial.print("rpm: ");
-    Serial.println(rpm);
-    Serial.print("ticksPerSec: ");
-    Serial.println(ticksPerSec);
+    Serial.print("freq:"); Serial.print(freq);
+    Serial.print(" rpm: "); Serial.print(rpm);
+    Serial.print(" ticksPerSec: "); Serial.println(ticksPerSec);
 
     if (ticksPerSec == 0) {
+      FrequencyTimer2::setPeriod(5000);
       if (frequencyTimerEnabled) {
         FrequencyTimer2::disable();
         frequencyTimerEnabled = false;
       }
+      Serial.println("clutch low");
       digitalWrite(clutch_pin, LOW);
     } else {
-      // Everything inside this block seems ok
-      Serial.println("updating period");
-      //FrequencyTimer2::disable();
-      //Serial.println("timer disabled");
-      delay(1);
-      Serial.print("Setting period to: ");
-      Serial.println(1000000 / ticksPerSec);
-      FrequencyTimer2::setPeriod(1000000 / ticksPerSec);
-      //Serial.println("enabling timer");
-      //delay(10);
+      int period = 1000000 / ticksPerSec;
+      Serial.print("Setting period to: "); Serial.println(period);
+      FrequencyTimer2::setPeriod(period);
       if (!frequencyTimerEnabled) {
         FrequencyTimer2::enable();
         frequencyTimerEnabled = true;
-        Serial.println("clutch high"); // not causing crash
-        delay(1);
+        Serial.println("clutch high");
         digitalWrite(clutch_pin, HIGH);
       }
     }
