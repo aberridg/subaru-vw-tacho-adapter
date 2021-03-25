@@ -8,6 +8,7 @@
 //Initializing Fuel pin
 int fuel_pin = 9;
 int clutch_pin = 12;
+int tacho_pin = 2;
 
 // Tacho input pin MUST be D8! Swap it ;-)
 
@@ -37,7 +38,7 @@ void isr()
 float readFrequency(unsigned int sampleTime)
 {
   numPulses = 0;                      // prime the system to start a new reading
-  attachInterrupt(digitalPinToInterrupt(2), isr, RISING);    // enable the interrupt
+  attachInterrupt(digitalPinToInterrupt(tacho_pin), isr, RISING);    // enable the interrupt
   delay(sampleTime);
   detachInterrupt(0);
   Serial.print("numPulses");
